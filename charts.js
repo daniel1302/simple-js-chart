@@ -697,7 +697,7 @@ var ChartAbstract = function() {
              * Dla wykresów kolumnowych
              */
             if (this.rotatedLabels === 0 && typeof center !== 'undefined' && center !== false) {
-                _x -= (this.labels[l].length*6.2/2 - hJumpSize/(1+this.get('columnSpaccing'))/2);
+                _x -= (this.labels[l].length*6.5/2 - hJumpSize/(1+this.get('columnSpaccing'))/2);                
             }
             
             
@@ -715,7 +715,9 @@ var ChartAbstract = function() {
                 //Dla wykresów kolumnowych
                 if (typeof center !== 'undefined') {
                     var dx = -leftShift/2 + parseInt((_label.length*this.fontSize)/2);
+                    dx += dx*0.4;
                     _x += dx;
+                    
                     _y += dx;
                 }
                 _transform = 'rotate(70, '+_x+', '+_y+')';
@@ -1181,13 +1183,13 @@ var ComposedBarChart = function() {
             var _x;
             if (this.get('verticalLegend').side === 'left') {
                 _x = 0;
-            }
-            else {
+            } else {
                 _x = this.area.width;
             }
             
+            var wrapLength = parseInt((this.width-this.area.width)/(this.fontSize/1.4));
             for (x in legendY) {               
-                legendY[x] = this.breakString(legendY[x], 25, _x+ 60);
+                legendY[x] = this.breakString(legendY[x], wrapLength, _x + 60);
                 lines += legendY[x].length;
             }
             
@@ -1202,7 +1204,7 @@ var ComposedBarChart = function() {
             for (x in legendY) {
                 this.layers[4]['legend_rect_'+x] = newElement('rect', {
                     x:          _x+30,
-                    y:          _y,
+                    y:          _y-this.fontSize/1.2 + x*8,
                     width:      this.fontSize,
                     height:     this.fontSize,
                     style: {
@@ -1214,7 +1216,7 @@ var ComposedBarChart = function() {
                 
                 this.layers[4]['legend_'+x] = newElement('text', {
                     x: 30,
-                    y: _y,
+                    y: _y + x*8,
                     'font-size': this.fontSize
                 });
                 
