@@ -2,7 +2,6 @@ function getUnique() {
     return Math.round((1+ Math.random()) * 1000000);
 }
 
-
 var newElement = function(name, attr) {
     var svgNS = "http://www.w3.org/2000/svg";  
     var tmp = document.createElementNS(svgNS, name);
@@ -113,6 +112,11 @@ var ChartAbstract = function() {
      */
     this.marginBottomSteps = 0;
     
+    /**
+     * Tablica z warstwami
+     * @type Array
+     */
+    this.layers = [[], [], [], [], [], [], [], [], [], []];  
     
     /**
      * Domyslna konfiguracja
@@ -121,7 +125,7 @@ var ChartAbstract = function() {
     this.defaultConfig = {
         showLines: 1, //Czy pokazywać linie w tle
         linesColor: '167,167,167', //Kolor lini tła
-        animate: 1, //Czy animować
+        animate: 0, //Czy animować
         title: '', //Tytuł
         marginBottom: 5, //Margines dolny
         marginSide: 5, //margin boczny(zalezy od strony której 
@@ -137,6 +141,9 @@ var ChartAbstract = function() {
         fontSize: 14, //Wielkość czcionki
         circleR: 3, //Promieć punktu na wykresie[px]
         forceRotateLabels: 0, //Wymusza obrócenie legendy
+        columnSpaccing: 0.75, //Ustala odstępy między kolumnami wykresu(jest to ułamek szerokości kolumny)
+        enableGradient: 1, //Włącza gradient jeśli wykres posiada taką opcję 
+        shadows: 1, //Jesli 1 to włącz generownaie cieni
         
         /**
          * Pole na tytuł
@@ -169,7 +176,11 @@ var ChartAbstract = function() {
         /**
          * Kolory w jakich rysowany będą elementy wykresu
          */
-        colours: {} 
+        colours: {
+            0: '#BBDEF9',
+            1: '#F7C93B',
+            2: '#9FC62D'
+        } 
     };    
   
     /**
@@ -239,9 +250,10 @@ var ChartAbstract = function() {
         this.setConfig(chartConfig);
         this.setLabels(chartLabels);
             
-        if (this.get('forceRotateLabels') === 1) 
+        if (this.get('forceRotateLabels') === 1 && this.get('rotateLabels') !== 0) {
             this.rotatedLabels = 1;
-            
+        };
+        
         this.fontSize = this.get('fontSize');
      
         //if (data.length < 1)
@@ -288,10 +300,16 @@ var ChartAbstract = function() {
         
         
         if (verticalLegend.side === 'left') {
-            dx = verticalLegend.x+verticalLegend.width+marginSide;
+            if (verticalLegend.width <= 1) {
+                dx += verticalLegend.width*width;
+            } else {
+                dx += verticalLegend.width;
+            }
+                
+            
+            dx += verticalLegend.x+marginSide;
             x += dx;
             width -= dx+5;
-            
         } else {
             width -= (x+verticalLegend.width+marginSide);
         }
@@ -321,7 +339,7 @@ var ChartAbstract = function() {
             var hJumpSize = this.getRealHorizontalJumpSize(this.labels.length);
             
             for (x in this.labels) {
-                if ((this.labels[x].length * this.fontSize) > hJumpSize) {
+                if ((this.labels[x].length * this.fontSize/2) > hJumpSize) {
                     this.rotatedLabels = 1;
                     break;
                 }
@@ -402,9 +420,9 @@ var ChartAbstract = function() {
      * @param {Array} layers Warstwy do narysowania
      */
     this.drawLayers = function(inSide, layers) {
-        for (var i in this.bg) {
+        for (var i in this.layers) {
             if (layers.length <= 0 || layers.indexOf(parseInt(i)) >= 0)
-                this.drawNodesIn(this.bg[i], inSide);
+                this.drawNodesIn(this.layers[i], inSide);
         }       
     };
     
@@ -415,7 +433,7 @@ var ChartAbstract = function() {
      */
     this.drawTitle = function() {
         var titleArea = this.get('titleArea', this.OBJECT);
-        this.bg[4]['title'] = newElement('text', {
+        this.layers[4]['title'] = newElement('text', {
             x:              (titleArea.x === null) ? this.width/2 : titleArea.x,
             y:              titleArea.y+13,
             'text-anchor':  'middle',
@@ -434,7 +452,7 @@ var ChartAbstract = function() {
         var horizontalLegen = this.get('horizontalLegend');
         var verticalLegend = this.get('verticalLegend');
         
-        this.bg[4]['legend_x'] = newElement('text', {
+        this.layers[4]['legend_x'] = newElement('text', {
             x:              (horizontalLegen.x === null) ? this.width/2 : horizontalLegen.x,
             y:              this.height - horizontalLegen.y - 4,
             'text-anchor':  'middle',
@@ -451,7 +469,7 @@ var ChartAbstract = function() {
         var xRotate = verticalLegend.x+20;
         var yRotate = verticalLegend.y;
         
-        this.bg[4]['legend_y'] = newElement('text', {
+        this.layers[4]['legend_y'] = newElement('text', {
             x:              verticalLegend.x,
             y:              verticalLegend.y,
             'text-anchor':  'middle',
@@ -467,10 +485,15 @@ var ChartAbstract = function() {
      * @param {String} string Ciąg znaków do połamania po "chars" znakach
      * @param {Number} chars Ilość znaków po jakich ciąg "string" ma być łamany
      * @param {Number} x Pozycja X w której ma być wstawiony tekst
+     * @param {Boolean} rotated Określa czy tekst jest obrócony true-tak, false- nie
      */
-    this.breakString = function(string, chars, x) {
+    this.breakString = function(string, chars, x, rotated) {
         string = new String(string);
         chars = parseInt(chars);
+        
+        if (typeof rotated === 'undefined' || rotated !== true) {
+            rotated = false;
+        }
         
         var stringArr = string.split(' ');
         var strLen = 0;
@@ -500,11 +523,11 @@ var ChartAbstract = function() {
             if (typeof stringArr[i] === 'undefined' || strLen === 0) {
                 tSpans[tSpans.length] = newElement('tspan', {
                     innerHTML:  text,
-                    x:          x,
+                    x:          (rotated === true) ? x-(3*i) : x,
                     dy:         (lineNumber > 0) ? '1em' : '0em'
                 });     
-                lineNumber++;
-                text = '';
+                lineNumber++; 
+               text = '';
             }
             
            
@@ -523,9 +546,11 @@ var ChartAbstract = function() {
      * @returns {undefined}
      */
     this.drawNodesIn = function(nodes, inSide) {
+        var x = null;
         if (Array.isArray(nodes))
             for (x in nodes) {
-                inSide.appendChild(nodes[x]);
+                if (typeof nodes[x] !== 'undefined' && nodes[x] !== null)
+                    inSide.appendChild(nodes[x]);
             }
         else 
             inSide.appendChild(nodes);
@@ -550,7 +575,7 @@ var ChartAbstract = function() {
         var xText = 0; //Od którego miejsca zaczyna się tekst
         var textAnchor = '';
         if (this.get('verticalLegend').side === 'left') {
-            this.bg[4]['line_0'] = newElement('line', {
+            this.layers[4]['line_0'] = newElement('line', {
                 x1: this.area.x,
                 x2: this.area.x,
                 y1: (this.area.y+marginBottom),
@@ -565,7 +590,7 @@ var ChartAbstract = function() {
             xText = this.get('verticalLegend').width;
             textAnchor = 'end';
         } else {
-            this.bg[4]['line_0'] = newElement('line', {
+            this.layers[4]['line_0'] = newElement('line', {
                 x1: (this.area.x+this.area.width),
                 x2: (this.area.x+this.area.width),
                 y1: (this.area.y+marginBottom),
@@ -589,7 +614,7 @@ var ChartAbstract = function() {
         
         
         //Linie poziome
-        this.bg[4]['line_1'] = newElement('line', {
+        this.layers[4]['line_1'] = newElement('line', {
             x1: (dx+this.area.x),
             x2: (dx+this.area.x+this.area.width),
             y1: this.area.y,
@@ -609,14 +634,14 @@ var ChartAbstract = function() {
         
         if (tempNumber < 0) {
             this.marginBottomSteps = Math.floor(tempNumber);            
-            var startPoint = this.marginBottomSteps*this.valueJump;
+           // var startPoint = this.marginBottomSteps*this.valueJump;
         }
         
         
         
         for(var i=1;i<=this.jumps;i++) {
             if (this.get('showLines') === 1) {
-                this.bg[4]['line_1_'+i] = newElement('line', {
+                this.layers[4]['line_1_'+i] = newElement('line', {
                     x1: (this.area.x),
                     x2: (this.area.x+this.area.width),
                     y1: (-this.realJumpSize*i+this.area.y),
@@ -628,7 +653,7 @@ var ChartAbstract = function() {
                 });  
             }
 
-            this.bg[4]['text_1_'+i] = newElement('text', {
+            this.layers[4]['text_1_'+i] = newElement('text', {
                 x:              xText,
                 y:              (-this.realJumpSize*i+this.area.y+(this.fontSize/2)),
                 'text-anchor':  textAnchor,
@@ -636,8 +661,78 @@ var ChartAbstract = function() {
                 'font-size':    this.fontSize,
                 innerHTML:      (startPoint + (i*this.valueJump))
             });
-        } 
+        }         
+    };
+    
+    /**
+     * Rysuj etykiety pod wykresem
+     * 
+     * @param {Number} leftShift Przesunięcie etykiet od lewej krawędzi.
+     * @param {Number} hJumpSize Odstęp pomiędzy etykietami
+     * @param {Boolean} center Automatycznie wyśrodkuj tekst tekst
+     * @returns {undefined}
+     */
+    this.drawLabels = function(leftShift, hJumpSize, center) {
+        if (typeof leftShift === 'undefined')
+            leftShift = 0;
+        if (typeof hJumpSize === 'undefined') 
+            hJumpSize = this.getRealHorizontalJumpSize(this.labels.length-1);
         
+        var l = 0;
+        var _x = 0;
+        var _y = 0;
+        var _transform = '';
+        var _label = '';
+        var modulo = parseInt(this.get('showEvery'));
+        
+        for (l in this.labels) {
+            if (modulo > 1 && l % modulo !== 0)
+                continue;
+            
+            _x = (-1)*leftShift+(this.area.x + (l*hJumpSize));
+            _y = (this.area.y + 15);
+            
+            
+            /**
+             * Dla wykresów kolumnowych
+             */
+            if (this.rotatedLabels === 0 && typeof center !== 'undefined' && center !== false) {
+                _x -= (this.labels[l].length*6.2/2 - hJumpSize/(1+this.get('columnSpaccing'))/2);
+            }
+            
+            
+            _label = newElement('tspan', {
+                    innerHTML:  this.labels[l],
+                    x:          _x
+                });
+            
+            
+            if (this.rotatedLabels === 1) {
+                _x -= 3;
+                _y -= 5;
+                _label = this.breakString(this.labels[l], 7, _x-3, true);
+                
+                //Dla wykresów kolumnowych
+                if (typeof center !== 'undefined') {
+                    var dx = -leftShift/2 + parseInt((_label.length*this.fontSize)/2);
+                    _x += dx;
+                    _y += dx;
+                }
+                _transform = 'rotate(70, '+_x+', '+_y+')';
+            } 
+            
+            this.layers[4]['label_'+l] = newElement('text', {
+                x:              _x-10,
+                y:              _y,
+                'text-anchor':  'start',
+                fill:           '#000000',
+                'font-size':    this.fontSize,
+               // innerHTML:      _label,
+                transform:      _transform
+            });
+            //if (typeof _label != 'undefined' && _label.length > 10)
+            this.drawNodesIn(_label, this.layers[4]['label_'+l]);
+        }
     };
     
     /**
@@ -755,17 +850,21 @@ var ChartAbstract = function() {
      * @param {Object} to Element do którego wpisujemy(oppcjonalny)
      * @returns {Boolean}
      */
-    this.writeDefinitions = function(to) {
-        if (typeof to === 'undefined')
+    this.appendDefinitions = function(to) {
+        if (typeof to === 'undefined') {
+            if (typeof this.svg === 'undefined')
+                throw 'Undefined node to append definitions';
+            
             to = this.svg;
-        
-        var defs = newElement('defs', {});
-        
-        
-        to.appendChild = defs;
+        }
+        var defs = newElement('defs', {});        
+        for (x in this.defs) {
+            defs.appendChild(this.defs[x]);
+        }
+        to.appendChild(defs);
         
         return true;
-    }
+    };
     
     /**
      * Zwraca wartość co jaką jest rysowana linia tła pozioma(Wymiar w PX)
@@ -798,94 +897,441 @@ var ChartAbstract = function() {
 
 
 
+/**
+ * Obiekt kolumny
+ * @type {Object}
+ */
+var Column = function() {
+    /**
+     * Referencja na obiekt wykresy do którego należy kolumna
+     * @type {Object}
+     */
+    this.chart = null;
+    
+    /**
+     * Współżędna X od której zaczynamy rysować kolumne
+     * @type {Number}
+     */
+    this.x;
+    
+    /**
+     * Współżędna Y od której zaczynamy rysować kolumnę
+     * @type {Number}
+     */
+    this.y;
+    
+    /**
+     * Szerokośc kolumny
+     * @type {Number}
+     */
+    this.widtdh;
+    
+    /**
+     * Wysokość kolumny[px]
+     * @type {Number}
+     */
+    this.height;
+    
+    /**
+     * Wartość jaką kolumna reprezentuje(realna wartość)
+     * @type {Numer}
+     */
+    this.value;
+    
+    /**
+     * Wypełnienie
+     * @type {String}
+     */
+    this.fill;
+    
+    /**
+     * Identyfikator wykresu
+     * @type {String}
+     */
+    this.id;
+    
+    /**
+     * Przetrzymuje utworzony już obiekt kolumny
+     * @type {Object}
+     */
+    this.parent;
+    
+    /**
+     * Szerokośc obramowania
+     * @type {Number}
+     */
+    this.borderWidth = 1;
+    
+    /**
+     * Kolor obramowania
+     * @type {String}
+     */
+    this.borderColor = '#ffffff';
 
+    /**
+     * Określa czy wartość ma być w czy poza kolumną
+     * @type {String}
+     */
+    this.textPosition = 'inside';
+    
+    /**
+     * Wielkość czcionki
+     * @type {Number}
+     */
+    this.fontSize = 14;
+    
+    /**
+     * Obiekt etykiety
+     * @type {Object}
+     */
+    this.textObj = null;
+    
+    /**
+     * Obiekt cienia dla kolumny
+     * @type {Object}
+     */
+    this.shadowObj = null;
+    
+    this.get = function(force) {
+        if ((typeof this.object !== 'undefined' && force === true) || typeof this.object === 'undefined') {        
+            if (typeof this.x === 'undefined' || typeof this.y === 'undefined' || typeof this.width === 'undefined' || typeof this.height === 'undefined')
+                throw 'I can\'t generate SVG Chart. You must set sizes of rectangle';
+            if (typeof this.fill === 'undefined')
+                throw 'Set fill color to column';
+            if (typeof this.borderWidth === 'undefined' || typeof this.borderColor === 'undefined')
+                throw 'Set border to column';
 
+            this.object = newElement('rect', {
+                x:          this.x,
+                y:          this.y,
+                width:      this.width,
+                height:     this.height,
+                style: {
+                    fill:           this.fill,
+                    'stroke-width': this.borderWidth,
+                    stroke:         this.borderColor
+                }
+            });
+        }
+               
+        return this.object;
+    };
+    
+    this.getTextObj = function(text) {
+        if (text.length > 0 && this.height > 0) {
+            var _y = -this.fontSize;
+            var y = 0;
+            var minHeight = this.fontSize*1.5;
+            
+            
+            
+            if (this.textPosition === 'inside') {
+                _y *= -1;
+            }
+            y = this.y + _y;
+            
+            if (this.height < minHeight && this.textPosition === 'inside') {
+                y = this.y - 0.2*this.fontSize;
+            }
+            
+            this.textObj = newElement('text', {
+                x:              this.x + this.width/2,
+                y:              y,
+                'font-size':    this.fontSize,
+                'text-anchor':  'middle',
+                innerHTML:      text
+            });
+            //console.log('AAA');
+        }        
+        
+        return this.textObj;
+    };
+    
+    this.getShadow = function() {
+        if (this.object !== null) {
+            this.shadowObj = newElement('rect', {
+                x:          this.x+3,
+                y:          this.y+3,
+                width:      this.width,
+                height:     this.height-6,
+                style: {
+                    fill:           '#E1E1E1'
+                }
+            });
+        }
+        
+        return this.shadowObj;
+    };
+};
 
-var ComposedBarChart = function () {
-    this.html = '';
+var ComposedBarChart = function() {
+    /**
+     * Suma wartości wszystkich części słupków
+     * @type {Number}
+     */
     this.topLevelSum = 0;
     
+    /**
+     * Ilośc kolumn
+     * @type {Number}
+     */
+    this.columns = 0;
     
+    /**
+     * Olość powrórzeń pętli głównej
+     * @type {Number}
+     */
+    this.loopIntervals = 0;
+    
+    /**
+     * Ułamek szerokości kolumny określający szerokośc odstępu między kolumnami
+     * @type {Number}
+     */
+    this.columnSpaccing = 0;
+    
+    /**
+     * Szerokość kolumny[px](skok jednej jednostki)
+     * @type {Number}
+     */
+    this.realHorizontalJumpSize = 0;
+    
+    /**
+     * Obiekt obszru rysowania wykresu
+     * @type {Object}
+     */
+    this.area = null;
+    
+
+    /**
+     * Wykonuje wszystkie potrzebne obliczenia do narysowania wykresu
+     * 
+     * @returns null
+     */
+    this.calculate = function() {
+        this.topLevelSum = this.sumToTopLevel(this.data);
+        this.columns = this.topLevelSum.length;
+        this.loopIntervals = 2*this.columns + 1;
+        
+        var horizontalJumpAmount = this.columns + this.columnSpaccing*(this.columns+1);
+        this.realHorizontalJumpSize = this.getRealHorizontalJumpSize(horizontalJumpAmount);
+        
+        this.maxValue = this.getMaxValue(this.topLevelSum);
+    };
+    
+    function _init(that) {
+        that.svgContainer.innerHTML = '';
+        
+        //Wymuś wygląd wykresu
+        if (typeof that.config.verticalLegend === 'undefined')
+            that.config.verticalLegend = [];
+        
+        that.config.verticalLegend.side     = 'right';
+        that.config.verticalLegend.x        = 0;
+        that.config.verticalLegend.width    = that.width*0.40;
+        
+        
+        that.area           = that.getChartArea();
+        that.columnSpaccing = that.get('columnSpaccing');
+        
+        that.svg = newElement('svg', {
+            id:         that.unique,
+            height:     that.height,
+            width:      that.width            
+        });
+    };
+    
+    
+    /**
+     * Rysuje linie poziome
+     * 
+     * @returns null
+     */
+    this.drawBg = function() {        
+        var verticalJumps = 5;
+        var i;
+        
+        for (i=0; i<verticalJumps; i++) {
+            var _y = i*this.area.height/verticalJumps;
+            
+            this.layers[3]['line_'+i] = newElement('line', {
+                x1: this.area.x,
+                x2: this.area.x+this.area.width,
+                y1: this.area.y-_y,
+                y2: this.area.y-_y,
+                style: {
+                    stroke:         'rgb('+this.get('linesColor')+')',
+                    'stroke-width': 0.5
+                }
+            });
+        }
+    };
+    
+    /**
+     *  Rysuje legende.
+     * @returns {undefined}
+     */
+    this.drawLegends = function() {
+        var legendY = this.get('legendY');
+        var legendElements = legendY.length;
+        
+        if (typeof legendY !== 'undefined' && legendElements > 0) {
+            var x;
+            var lines = 0;
+            
+            var _x;
+            if (this.get('verticalLegend').side === 'left') {
+                _x = 0;
+            }
+            else {
+                _x = this.area.width;
+            }
+            
+            for (x in legendY) {               
+                legendY[x] = this.breakString(legendY[x], 25, _x+ 60);
+                lines += legendY[x].length;
+            }
+            
+            /**
+             * Legendę wyświetlamy zawsze na środku wysokości
+             */
+            var legendHeight = lines * this.fontSize * 1.1;            
+            var _y = (this.height-legendHeight)/2;
+            
+            
+            var colours = this.get('colours');
+            for (x in legendY) {
+                this.layers[4]['legend_rect_'+x] = newElement('rect', {
+                    x:          _x+30,
+                    y:          _y,
+                    width:      this.fontSize,
+                    height:     this.fontSize,
+                    style: {
+                        fill:           colours[x],
+                        'stroke-width': 0.5,
+                        stroke:         '#000000'
+                    }
+                });
+                
+                this.layers[4]['legend_'+x] = newElement('text', {
+                    x: 30,
+                    y: _y,
+                    'font-size': this.fontSize
+                });
+                
+                _y += legendY[x].length * this.fontSize * 1.1;
+                this.drawNodesIn(legendY[x], this.layers[4]['legend_'+x]);
+            }
+        }
+    };
+    
+    this.drawColumns = function() {        
+        var tmpX = this.area.x;
+        var i;
+        var j;
+        var k=0;
+        //W sobotę do pracy a potem idę na urodziny chrzesniaka. Ale glowa mnie boli strasznie. Wrrr
+        //
+        
+        var gradients = [];
+        var colours = this.get('colours');
+        var enabledShadow = this.get('shadows');
+        var enableGradient = parseInt(this.get('enableGradient'));
+        
+        for (i=1; i<=this.loopIntervals; i++) {
+            if (i%2 === 1) 
+                tmpX += this.columnSpaccing*this.realHorizontalJumpSize;
+            else {
+                var tmpY = (this.area.y);
+                var allColumnHeight = 0;
+                
+                for(j in this.data[k]) {
+                    var tmpHeight = (this.area.height*this.data[k][j])/this.maxValue;
+                    tmpY -= tmpHeight;
+                    allColumnHeight += tmpHeight;
+                    if (enableGradient === 1 && typeof gradients[j] === 'undefined') {
+                        var gradient = newElement('linearGradient', {
+                            id: 'gradient'+j,
+                            x1: '0',
+                            x2: '0',
+                            y1: '0',
+                            y2: '1'
+                        });
+                        gradient.appendChild(newElement('stop', {
+                            offset: '20%',
+                            'stop-color': colours[j]
+                        }));
+                        gradient.appendChild(newElement('stop', {
+                            offset: '99%',
+                            'stop-color': '#fefefc'
+                        }));
+                        this.addDefinition(gradient);
+                        gradients[j] = 1;
+                    }
+                    
+                    var column1 = new Column();
+                    column1.x = tmpX;
+                    column1.y = tmpY;
+                    column1.width = this.realHorizontalJumpSize;
+                    column1.height = tmpHeight;
+                    if (enableGradient === 1) {
+                        column1.fill = 'url(#gradient'+j+')';
+                    }
+
+                    column1.borderColor = '#000000';
+                    column1.borderWidth = 0.5;
+                    column1.parent = this.layers;
+                    column1.id = 'column'+i+'_'+j;
+                    column1.chart = this;
+                    
+                    
+                    this.layers[6][column1.id] = column1.get();
+                    this.layers[7][column1.id+'_text'] = column1.getTextObj(this.data[k][j].toString());
+                }   
+                tmpX += this.realHorizontalJumpSize;
+                k++;
+                
+                //Cienie
+                if (enabledShadow === 1) {
+                    this.layers[2]['shadow_'+i] = newElement('rect', {
+                        x:          tmpX-3,
+                        y:          tmpY+2,
+                        width:      5,
+                        height:     allColumnHeight-3,
+                        style: {
+                            fill:           '#7F7F7F'
+                        }
+                    });
+                }
+            }
+        }
+    };
     
     this.draw = function() {
-        this.svgContainer.innerHTML = '';
+        
         
         /**
          * TODO:
          * - DODAĆ METODĘ SET ZAPISUJĄCĄ JEŚLI NIEMA W KONFIGURACJI PRZEKAZANEJ PRZEZ UŻYTKOWNIKA, ŻEBY UŻYTKOWNIK MÓGŁ NADPISAĆ WARTOŚCI BO TERAZ PUKI CO NIE MOŻNA NADPISAĆ WARTOŚCI
          * 
          */
-        //Wymuś wygląd wykresu
-        if (typeof this.config.verticalLegend === 'undefined')
-            this.config.verticalLegend = [];       
-       // this.config.verticalLegend.side = 'left';
-        this.config.verticalLegend.x = 0;
-        this.config.verticalLegend.width = this.width*0.40;
-        if (typeof this.config.horizontalLegend === 'undefined')
-            this.config.horizontalLegend = [];
-        this.config.horizontalLegend.height = 0;
-        this.config.horizontalLegend.y = 0;
-       
-       
-        var area = this.getChartArea();
-       
-       
-       
-        console.log(area);
-        /**
-         * <defs>
-        <linearGradient id="MyGradient">
-            <stop offset="5%"  stop-color="green"/>
-            <stop offset="95%" stop-color="gold"/>
-        </linearGradient>
-    </defs>
- x1="0" x2="0" y1="0" y2="1"
-    <rect fill="url(#MyGradient)"
-         */
-        var gradient = newElement('linearGradient', {
-            id: 'gradient1',
-            x1: '0',
-            x2: '0',
-            y1: '0',
-            y2: '1'
-        });
-        gradient.appendChild(newElement('stop', {
-            offset: '2%',
-            'stop-color': 'green'
-        }));
-        gradient.appendChild(newElement('stop', {
-            offset: '98%',
-            'stop-color': '#fff'
-        }));
-        this.addDefinition(gradient);
         
-        var defs = newElement('defs', {});
+        //Wywoałaj konstruktor i obliczenia
+        _init(this);
+        this.calculate();
         
+        this.drawLegends();        
+        this.drawBg();
+        this.drawColumns();
         
-        this.svg = newElement('svg', {
-            id:         this.unique,
-            height:     this.height,
-            width:      this.width            
-        });
-        this.svg.appendChild(defs);
+        //this.config.forceRotateLabels = 0;
+        //this.rotatedLabels = 0;
+        this.drawLabels(-this.columnSpaccing*this.realHorizontalJumpSize, (this.realHorizontalJumpSize + this.columnSpaccing*this.realHorizontalJumpSize), true);
+        this.appendDefinitions();        
+        this.svgContainer.innerHTML = '';
+        //Dodaj elementy tła        
+        this.drawLayers(this.svg, [1,2,3,4,5,6,7,8,9]);
+        this.svgContainer.appendChild(this.svg);
         
-        //<rect width="300" height="100" style="fill:rgb(0,0,255);stroke-width:3;stroke:rgb(0,0,0)" />
-        this.rect = newElement('rect', {
-            width:  area.width,
-            height: area.height,
-            x:      area.x,
-            y:      (area.y-area.height),
-            style:  {
-                fill: 'url(#gradient1)',
-                'stroke-width': 3,
-                stroke: 'rgb(0,0,0)'
-            }            
-        });
-        //this.getMaxValue(this.data);
-        this.svg.appendChild(this.rect);
-        this.topLevelSum = this.sumToTopLevel(this.data);
-       
-       this.svgContainer.appendChild(this.svg);
     };
 };
 
@@ -896,7 +1342,6 @@ var ComposedBarChart = function () {
  */
 var LineChart = function () {
     this.html = '';
-    this.bg = [[], [], [], [], [], [], [], [], [], []];  
     
     //Wartośc maksymalna
     this.maxValue = 0;       
@@ -924,7 +1369,7 @@ var LineChart = function () {
             
             if (oldY !== null) {
                 
-                this.bg[5]['line_2_'+i] = newElement('line', {
+                this.layers[5]['line_2_'+i] = newElement('line', {
                     id: this.unique+'_line_2_'+i,
                     x1: (oldX),
                     x2: newX,
@@ -949,7 +1394,7 @@ var LineChart = function () {
         var circleR = this.get('circleR', this.NUMBER);
         var i = 1;
         for (var j in points) {
-            this.bg[5]['point_'+j] = newElement('circle', {
+            this.layers[5]['point_'+j] = newElement('circle', {
                 id: this.unique+'_point_'+j,
                 cx: points[j].x,
                 cy: (points[j].y - marginBottom),
@@ -985,7 +1430,7 @@ var LineChart = function () {
             if (parseInt(j) === 0) 
                 moveLeft = 5;
             
-            this.bg[6]['rect_'+j] = newElement('rect', {
+            this.layers[6]['rect_'+j] = newElement('rect', {
                id: this.unique+'_rect_'+j,
                x:  _x+2,
                y: (points[j].y-this.fontSize-moveUp-2-marginBottom),
@@ -999,7 +1444,7 @@ var LineChart = function () {
                }
             });
             
-            this.bg[6]['point_'+j+'_desc'] = newElement('text', {
+            this.layers[6]['point_'+j+'_desc'] = newElement('text', {
                 id:             this.unique+'_point_'+j+'_desc',
                 x:              (points[j].x+moveLeft),
                 y:              (points[j].y-moveUp-marginBottom),
@@ -1010,7 +1455,7 @@ var LineChart = function () {
             });
             
             
-            this.bg[2]['point_'+j+'_val'] = newElement('text', {
+            this.layers[2]['point_'+j+'_val'] = newElement('text', {
                 id:             this.unique+'_point_'+j+'_val',
                 x:              (points[j].x+moveLeft),
                 y:              (points[j].y-moveUp-marginBottom),
@@ -1031,7 +1476,7 @@ var LineChart = function () {
     };
     
     this.setAnimations = function(i) {
-        if (typeof this.bg[5]['line_2_'+i] === 'undefined')
+        if (typeof this.layers[5]['line_2_'+i] === 'undefined')
             return false;
         
         var startAnimationY = this.area.y - (this.area.height/2);
@@ -1040,38 +1485,38 @@ var LineChart = function () {
         var animation = newElement('animate', {
             attributeName: 'y1',
             from: startAnimationY,
-            to: this.bg[5]['line_2_'+i].y1.baseVal.value,
+            to: this.layers[5]['line_2_'+i].y1.baseVal.value,
             begin: '0',
             dur: aTime
         });
         var animation1 = newElement('animate', {
             attributeName: 'y2',
             from: startAnimationY,
-            to: this.bg[5]['line_2_'+i].y2.baseVal.value,
+            to: this.layers[5]['line_2_'+i].y2.baseVal.value,
             begin: '0',
             dur: aTime
         });
         var animation2 = newElement('animate', {
             attributeName: 'cy',
             from: startAnimationY,
-            to: this.bg[5]['point_'+i].cy.baseVal.value,
+            to: this.layers[5]['point_'+i].cy.baseVal.value,
             begin: '0',
             dur: aTime
         });
         var animation3 = newElement('animate', {
             attributeName: 'y',
             from: (startAnimationY-10),
-            to: this.bg[5]['point_'+i].cy.baseVal.value,
+            to: this.layers[5]['point_'+i].cy.baseVal.value,
             begin: '0',
             dur: aTime
         });
                 
                 
 
-        this.bg[5]['line_2_'+i].appendChild(animation);
-        this.bg[5]['line_2_'+i].appendChild(animation1);
-        this.bg[5]['point_'+i].appendChild(animation2);
-        this.bg[2]['point_'+i+'_val'].appendChild(animation3);
+        this.layers[5]['line_2_'+i].appendChild(animation);
+        this.layers[5]['line_2_'+i].appendChild(animation1);
+        this.layers[5]['point_'+i].appendChild(animation2);
+        this.layers[2]['point_'+i+'_val'].appendChild(animation3);
     };
     
     /**
@@ -1129,55 +1574,6 @@ var LineChart = function () {
         this.realJumpSize = this.getRealJumpSize();
         this.drawBg();
         this.drawChart();
-    };
-    
-    /**
-     * Rysuj etykiety pod wykresem
-     * 
-     * @returns {undefined}
-     */
-    this.drawLabels = function() {
-        var hJumpSize = this.getRealHorizontalJumpSize(this.labels.length-1);
-        
-        var l = 0;
-        var _x = 0;
-        var _y = 0;
-        var _transform = '';
-        var _label = '';
-        var modulo = parseInt(this.get('showEvery'));
-        for (l in this.labels) {
-            if (modulo > 1 && l % modulo !== 0)
-                continue;
-            
-            _x = (this.area.x + (l*hJumpSize));
-            _y = (this.area.y + 15);
-            _label = newElement('tspan', {
-                    innerHTML:  this.labels[l],
-                    x:          _x
-                });
-            
-            if (this.rotatedLabels === 1) {
-                _transform = 'rotate(70, '+_x+', '+_y+')';
-                _x -= 10;
-                _y -= 4;
-                _label = this.breakString(this.labels[l], 10, _x);
-            } 
-               
-            
-                
-            
-            this.bg[4]['label_'+l] = newElement('text', {
-                x:              _x,
-                y:              _y,
-                'text-anchor':  'start',
-                fill:           '#000000',
-                'font-size':    this.fontSize,
-               // innerHTML:      _label,
-                transform:      _transform
-            });
-            //if (typeof _label != 'undefined' && _label.length > 10)
-            this.drawNodesIn(_label, this.bg[4]['label_'+l]);
-        }
     };
     
     /**
