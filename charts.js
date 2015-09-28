@@ -129,6 +129,9 @@ var ChartAbstract = function() {
         marginBottom: 5, //Margines dolny
         marginSide: 5, //margin boczny(zalezy od strony której 
         borderColor: '0, 0, 0', //Kolor obramownania
+        linesWidth: 1, //Grubość liń
+        animateLinesWidth: 4, //Grubość liń
+        animateBorderColor: '0, 0, 0', //Kolor obranowania po animacji
         showValues: 1, //Pokazuj wartości nad/obok słupkami/punktami
         legendX: '', //Legenda pozioma
         legendY: '', //Legenda pionowa
@@ -857,7 +860,7 @@ var ChartAbstract = function() {
             to = this.svg;
         }
         var defs = newElement('defs', {});        
-        for (x in this.defs) {
+        for (var x in this.defs) {
             defs.appendChild(this.defs[x]);
         }
         to.appendChild(defs);
@@ -1613,7 +1616,7 @@ var LineChart = function () {
 };
 
 var MapChart = function() {
-    this.ROVINCE_POLSKA                 = 0;
+    this.ROVINCE_POLSKA                  = 0;
     this.PROVINCE_DOLNOSLASKIE           = 1;
     this.PROVINCE_KUJAWSKO_POMORSKIE     = 2;
     this.PROVINCE_LUBELSKIE              = 3;
@@ -1691,33 +1694,143 @@ var MapChart = function() {
         16: '#e9cb00'
     };
     
+    this.replaceSiblings = function(element1, element2, back) {
+        var parent = element1.parentNode;
+        var siblings = parent.childNodes;
+        
+        if (typeof back === 'undefined') {
+            back = 0;
+        }
+        if (element1.id === element2.id) {
+            throw 'Elementy nie mogą mieć takiego samego identyfikatora!';
+        }
+        
+        for (var x in siblings) {
+            if (siblings[x].id === element1.id) {
+                var element1Id = x;
+            }
+            if (siblings[x].id === element2.id) {
+                var element2Id = x;
+            }
+        }
+        
+        if (typeof element2Id === 'undefined' || typeof element1Id === 'undefined') {
+            throw 'Elementy nie są rodzeństwem!';
+        }
+        
+        var siblingsAmount = siblings.length;
+
+        if (element2Id === (siblingsAmount-1)) {
+            parent.insertBefore(element1, element2);
+            parent.insertBefore(element2, siblings[element1Id+1]);
+        } else {            
+            var next1Id = (parseInt(element1Id)+1);
+            var next2Id = (parseInt(element2Id));
+            if (back === 0) {
+                next2Id += 1;
+            }            
+            parent.insertBefore(element2, siblings[next1Id]);
+            parent.insertBefore(element1, siblings[next2Id]);
+        
+        }
+    };
+    
     this.draw = function() {
         if (typeof layers === 'undefined') {
-            layers = [];
+            layers = [0,1,2,3,4,5,6,7,8,9];
         }
         var colours = this.get('colours');
+        var borderColor = this.get('borderColor');
+        var animateBorderColor = this.get('animateBorderColor');
+        var linesWidth = parseInt(this.get('linesWidth'))*100;
+        var animateLinesWidth = parseInt(this.get('animateLinesWidth'))*100;
         
         for (var provinceId in this.provinces) {
             if (this.provinces[provinceId] === null) {
                 
             } else {
-                //:#e9cb00;fill-opacity:1;stroke:#000000;stroke-width:223.33334351000002000;
-            
-
-                this.layers[5]['path_'+provinceId] = newElement('path', {
+                var tmpElement = newElement('path', {
                     d:      this.provincesDefs[provinceId],
                     id:     'province_path_'+provinceId,
                     style:  {
                         fill:           colours[provinceId],
                         'fill-opacity': 1,
-                        stroke:         '#000000',
-                        'stroke-width':   '200'
+                        stroke:         'rgb('+borderColor+')',
+                        'stroke-width':   linesWidth
                     }
                 });
+                
+                var that = this;
+                if (parseInt(this.get('animate')) === 1) {
+                    tmpElement.addEventListener('mouseover', function() {
+                        var element1 = this;
+                        var element3 = document.getElementById('province_path_0');
+                        
+                        this.style['stroke-width'] = animateLinesWidth;
+                        this.style['stroke'] = 'rgb('+animateBorderColor+')';
+                        this.style['filter'] = "url(#f1)";
+                        that.replaceSiblings(element1, element3);
+                        
+                    });
+                    
+                    tmpElement.addEventListener('mouseleave', function() {
+                        var element1 = this;
+                        var element3 = document.getElementById('province_path_0');
+                        
+                        this.style['stroke'] = 'rgb('+borderColor+')';
+                        this.style['stroke-width'] = linesWidth;
+                        this.style['filter'] = null;
+                        that.replaceSiblings(element1, element3, 1);
+                    });
+                }
+
+                this.layers[5]['path_'+provinceId] = tmpElement;
             }
         }
         
-        console.log(this.layers);
+       
+        
+        this.layers[5]['path_0'] = newElement('path', {
+            d:      '',
+            id:     'province_path_0'
+        });
+        
+        this.drawLabels();
+        
+    
+        var filter = newElement('filter', {
+            id:             'f1',
+            height:         '200%',
+            width:          '200%',
+            x:              0,
+            y:              0
+        });
+        filter.appendChild(newElement('feOffset', {
+            result: "offOut",
+            in: "SourceGraphic",
+            dx: 400,
+            dy: 400
+        }));
+        if (parseInt(this.get('shadows')) === 1) {
+            filter.appendChild(newElement('feColorMatrix', {
+                result: "matrixOut",
+                in: "offOut",
+                type: 'matrix',
+                values: '1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 10 0'
+            }));
+            filter.appendChild(newElement('feGaussianBlur', {
+                result: "blurOut",
+                in: "matrixOut",
+                stdDeviation: 300,
+            }));
+            filter.appendChild(newElement('feBlend', {
+                result: "blurOut",
+                in2: "blurOut",
+                mode: "normal"
+            }));
+        }
+        
+        this.addDefinition(filter);
         
         this.svg = newElement('svg', {
             id:             this.unique,
@@ -1727,14 +1840,50 @@ var MapChart = function() {
             'fill-rule':    'evenodd',
             viewBox:        '0 0 180000 150000'
         });
-
+        
+        
         this.svgContainer.innerHTML = '';
+        this.appendDefinitions(this.svg);
         //Dodaj elementy tła        
         this.drawLayers(this.svg, layers);
-        this.svgContainer.appendChild(this.svg);
+        this.svgContainer.appendChild(this.svg);        
+    };
+    
+    this.drawLabels = function() {
+        var coords = [];
+        coords[this.PROVINCE_DOLNOSLASKIE]          = [29500, 78000];
+        coords[this.PROVINCE_KUJAWSKO_POMORSKIE]    = [57000, 38000];
+        coords[this.PROVINCE_LUBELSKIE]             = [112000, 78000];
+        coords[this.PROVINCE_LUBUSKIE]              = [16000, 56000];
+        coords[this.PROVINCE_LODZKIE]               = [68500, 70000];
+        coords[this.PROVINCE_MALOPOLSKIE]           = [81000, 105000];
+        coords[this.PROVINCE_MAZOWIECKIE]           = [90000, 50000];
+        coords[this.PROVINCE_OPOLSKIE]              = [47000, 90000];
+        coords[this.PROVINCE_PODKARPACKIE]          = [103500, 99000];
+        coords[this.PROVINCE_PODLASKIE]             = [112000, 36000];
+        coords[this.PROVINCE_POMORSKIE]             = [51000, 17000];
+        coords[this.PROVINCE_SLASKIE]               = [65000, 88000];
+        coords[this.PROVINCE_SWIETOKRZYSKIE]        = [86000, 85000];
+        coords[this.PROVINCE_WARMINSKO_MAZURSKIE]   = [89000, 23000];
+        coords[this.PROVINCE_WIELKOPOLSKIE]         = [40000, 54000];
+        coords[this.PROVINCE_ZACHODNIOPOMORSKIE]    = [19000, 26000];
         
-    }
+        for (var provinceId in this.provinces) {
+            if (typeof this.labels[provinceId] !== 'undefined' && this.labels[provinceId] !== null) {
+                this.layers[6]['label_'+provinceId] = newElement('text', {
+                    x:              coords[provinceId][0],
+                    y:              coords[provinceId][1],
+                    id:             'label_'+provinceId,
+                    'text-anchor':  'middle',
+                    fill:           '#000000',
+                    'font-size':    '4000',
+                    innerHTML:      this.labels[provinceId]
+                });
+            }
+        }    
+    };
 };
+
 LineChart.prototype = new ChartAbstract;
 ComposedBarChart.prototype = new ChartAbstract;
 MapChart.prototype = new ChartAbstract;
