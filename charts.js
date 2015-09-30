@@ -1735,15 +1735,37 @@ var MapChart = function() {
         }
     };
     
+    this.contoursOn = function(element) {       
+        var animateBorderColor = this.get('animateBorderColor');       
+        var animateLinesWidth = parseInt(this.get('animateLinesWidth'))*100;
+        
+        var element1 = document.getElementById('province_path_0');
+
+        element.style['stroke-width'] = animateLinesWidth;
+        element.style['stroke'] = 'rgb('+animateBorderColor+')';
+        element.style['filter'] = "url(#f1)";
+        this.replaceSiblings(element, element1);
+    }
+    
+    this.contoursOff = function(element) {
+        var borderColor = this.get('borderColor');
+        var linesWidth = parseInt(this.get('linesWidth'))*100;
+        
+        var element1 = document.getElementById('province_path_0');
+                        
+        element.style['stroke'] = 'rgb('+borderColor+')';
+        element.style['stroke-width'] = linesWidth;
+        element.style['filter'] = null;
+        this.replaceSiblings(element, element1, 1);
+    }
+    
     this.draw = function() {
         if (typeof layers === 'undefined') {
             layers = [0,1,2,3,4,5,6,7,8,9];
         }
         var colours = this.get('colours');
         var borderColor = this.get('borderColor');
-        var animateBorderColor = this.get('animateBorderColor');
         var linesWidth = parseInt(this.get('linesWidth'))*100;
-        var animateLinesWidth = parseInt(this.get('animateLinesWidth'))*100;
         
         for (var provinceId in this.provinces) {
             if (this.provinces[provinceId] === null) {
@@ -1763,24 +1785,13 @@ var MapChart = function() {
                 var that = this;
                 if (parseInt(this.get('animate')) === 1) {
                     tmpElement.addEventListener('mouseover', function() {
-                        var element1 = this;
-                        var element3 = document.getElementById('province_path_0');
-                        
-                        this.style['stroke-width'] = animateLinesWidth;
-                        this.style['stroke'] = 'rgb('+animateBorderColor+')';
-                        this.style['filter'] = "url(#f1)";
-                        that.replaceSiblings(element1, element3);
-                        
+                        var element1 = this;                        
+                        that.contoursOn(element1);
                     });
                     
                     tmpElement.addEventListener('mouseleave', function() {
-                        var element1 = this;
-                        var element3 = document.getElementById('province_path_0');
-                        
-                        this.style['stroke'] = 'rgb('+borderColor+')';
-                        this.style['stroke-width'] = linesWidth;
-                        this.style['filter'] = null;
-                        that.replaceSiblings(element1, element3, 1);
+                        var element1 = this;                        
+                        that.contoursOff(element1);
                     });
                 }
 
@@ -1870,7 +1881,7 @@ var MapChart = function() {
         
         for (var provinceId in this.provinces) {
             if (typeof this.labels[provinceId] !== 'undefined' && this.labels[provinceId] !== null) {
-                this.layers[6]['label_'+provinceId] = newElement('text', {
+                var tmpElement = newElement('text', {
                     x:              coords[provinceId][0],
                     y:              coords[provinceId][1],
                     id:             'label_'+provinceId,
@@ -1879,6 +1890,24 @@ var MapChart = function() {
                     'font-size':    '4000',
                     innerHTML:      this.labels[provinceId]
                 });
+                
+                var that = this;
+                if (parseInt(this.get('animate')) === 1) {
+                    tmpElement.addEventListener('mouseover', function() {
+                        var provinceId = parseInt(String(this.id).substring(6));
+                        
+                        var element = document.getElementById('province_path_'+provinceId);
+                        that.contoursOn(element);
+                    });
+                    tmpElement.addEventListener('mouseout', function() {
+                        var provinceId = parseInt(String(this.id).substring(6));
+                        
+                        var element = document.getElementById('province_path_'+provinceId);
+                        that.contoursOff(element);
+                    });
+                }
+                
+                this.layers[6]['label_'+provinceId] = tmpElement;
             }
         }    
     };
