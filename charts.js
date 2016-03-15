@@ -124,12 +124,13 @@ var ChartAbstract = function() {
     this.defaultConfig = {
         showLines: 1, //Czy pokazywać linie w tle
         linesColor: '167,167,167', //Kolor lini tła
+        textColor: '0, 0, 0', //Kolor napisu
         animate: 0, //Czy animować
         title: '', //Tytuł
         marginBottom: 5, //Margines dolny
         marginSide: 5, //margin boczny(zalezy od strony której 
         borderColor: '0, 0, 0', //Kolor obramownania
-        linesWidth: 1, //Grubość liń
+        linesWidth: 1, //Grubość liń(zastosowano także w wykresie kołowym)
         animateLinesWidth: 4, //Grubość liń
         animateBorderColor: '0, 0, 0', //Kolor obranowania po animacji
         showValues: 1, //Pokazuj wartości nad/obok słupkami/punktami
@@ -141,12 +142,23 @@ var ChartAbstract = function() {
         animationTime: '600ms', //Czas animacji z dopiskiem [ms/s/m/g]
         showEvery: 1, //Wyświetlaj co ... etykietę
         fontSize: 14, //Wielkość czcionki
+        fontBold: 0,
         circleR: 3, //Promieć punktu na wykresie[px]
         forceRotateLabels: 0, //Wymusza obrócenie legendy
         columnSpaccing: 0.75, //Ustala odstępy między kolumnami wykresu(jest to ułamek szerokości kolumny)
         enableGradient: 1, //Włącza gradient jeśli wykres posiada taką opcję 
         shadows: 1, //Jesli 1 to włącz generownaie cieni
+        animateColour: '148, 184, 219', //Domyślny kolor animacji
+        onlyPoints: 0, //Ustawienie dla wykresu liniowego, jeśli 1 to nie pokazuje lini wykresu.
+        pointFillColor: '#ffffff', //Wypełnienie punktów w wykresie liniowym
+        freeSpaceColor: '#ababab', //Kolor paska dla pustych danych w wykresie kołowym
+        startCircle: [250, 0], //Miejsce rozpoczęcia rysowania
+        circleCenter: [250, 250], //Środek okręgu
+        spaceSize: 1,
         events: {}, //Podłączenie Eventów
+        
+        
+        skipValue: function(value) { return false; } , //Wartości pomijane (Pominie funkcje jeśli zwróci prawdę)
         
         /**
          * Pole na tytuł
@@ -183,9 +195,14 @@ var ChartAbstract = function() {
             0: '#BBDEF9',
             1: '#F7C93B',
             2: '#9FC62D'
-        } 
+        },
+        /**
+         * Kolory wykorzystywane do animacji(np. mapki)
+         */
+        animateColours: {            
+        }
     };    
-  
+    
     /**
      * Zwraca wartośc konfiguracji generatora(piewsze sprawdza przesłane przez użytkownika a póniej domyślną)
      * 
@@ -210,6 +227,25 @@ var ChartAbstract = function() {
         return returnValue;
     };
     
+    this.isRgbColour = function(colour) {
+        var regexp = /^([ ]{0,6}[0-9]{1,3}[ ]{0,6}),([ ]{0,6}[0-9]{1,3}[ ]{0,6}),([ ]{0,6}[0-9]{1,3}[ ]{0,6})$/i;
+        
+        if (regexp.test(colour) === false) {
+            return false;
+        }
+        
+        return true;
+    };
+    
+    this.isHexColour = function(colour) {
+        var regexp = /^\#([0-9abcdef]{6}|[0-9abcdef]{3})$/i;
+        
+        if (regexp.test(colour) === false) {
+            return false;
+        }
+        
+        return true;
+    };
     
     this.setData = function(data) {
         if (typeof(data) !== 'undefined' && data.length > 0) 
@@ -356,6 +392,32 @@ var ChartAbstract = function() {
     };
     
     /**
+     * Zwraca informację o tym czy uużywamy przeglądarki wydanej przez microsoft
+     * 
+     * @returns boolean
+     */
+    this.isMSIE = function () {
+        var ua = window.navigator.userAgent;
+
+        var msie = ua.indexOf('MSIE ');
+        if (msie > 0) {
+            return true;
+        }
+
+        var trident = ua.indexOf('Trident/');
+        if (trident > 0) {
+            return true;
+        }
+
+        var edge = ua.indexOf('Edge/');
+        if (edge > 0) {
+            return true;
+        }
+        
+        return false;
+    };
+    
+    /**
      * Funkcja dostając wartośc maksymalna oraz ilość podziałów oblicza skok 
      * wartości jednego podziału, z zaokrąglaniem odpowiednio dla wartości:
      * 
@@ -377,7 +439,7 @@ var ChartAbstract = function() {
         if (typeof maxValue !== this.NUMBER)
             maxValue = 1;
         if (typeof minValue !== this.NUMBER)
-            maxValue = 0;
+            minValue = 0;
         
         var tempValue = 0;
         if (minValue > maxValue) {
@@ -388,13 +450,12 @@ var ChartAbstract = function() {
         }
             
         
-        maxValue = parseInt(maxValue);
-        
-        if (minValue < 0)
-            var span = maxValue - minValue;
-        else
+        maxValue = parseInt(maxValue);        
+        if (minValue < 0) {
+            var span = maxValue - minValue;      
+        } else {
             var span = maxValue;
-        
+        }
         var amount = parseInt(this.jumps);
 
        
@@ -412,7 +473,7 @@ var ChartAbstract = function() {
 
         var result = span / amount;
 
-        var result = Math.round(result - Math.round(result % mistake)) + mistake;
+        var result = Math.ceil(result - Math.floor(result % mistake)) + mistake;
 
         return result;    
     };
@@ -894,7 +955,6 @@ var ChartAbstract = function() {
     };
      
     this.draw = function() {
-        //console.log('Drawing is not defined.');
     };
     
     /**
@@ -1058,7 +1118,6 @@ var Column = function() {
                 'text-anchor':  'middle',
                 innerHTML:      text
             });
-            //console.log('AAA');
         }        
         
         return this.textObj;
@@ -1359,6 +1418,9 @@ var ComposedBarChart = function() {
  */
 var LineChart = function () {
     this.html = '';
+    //
+    this.defaultConfig.onlyPoints = 0;
+    
     
     //Wartośc maksymalna
     this.maxValue = 0;       
@@ -1374,18 +1436,25 @@ var LineChart = function () {
         var newX = null;
         var points = [];
         var marginBottom = Math.abs(this.marginBottomSteps) * this.realJumpSize;
-     
-        for (var i=0;i<dataLength;i++) {
+        var skipValueFunction = this.get('skipValue');
+        
+        for (var i=0;i<dataLength;i++) {                        
+            if (skipValueFunction(this.data[i]) === true) {
+                points[points.length] = false;
+                
+                continue;
+            }
             
             oldY = newY;
             oldX = newX;
+            
             newY = this.area.y-((this.realJumpSize * this.data[i]) / this.valueJump);
-            newX = (this.area.x+hJumpSize*i);
+            newX = (this.area.x+hJumpSize*i);      
             
             points[points.length] = {x: newX, y: newY, v: this.data[i] };
             
-            if (oldY !== null) {
-                
+            
+            if (oldY !== null && this.get('onlyPoints') === 0) {                
                 this.layers[5]['line_2_'+i] = newElement('line', {
                     id: this.unique+'_line_2_'+i,
                     x1: (oldX),
@@ -1401,22 +1470,22 @@ var LineChart = function () {
             }
         }
         
-        
         var moveUp = 8; //Przesunięcie opisu do góry
         var moveLeft = 0; //Przesunięcie opisu w lewo
         
-        
-
-        
         var circleR = this.get('circleR', this.NUMBER);
+        var pointFillColor = this.get('pointFillColor');
         var i = 1;
         for (var j in points) {
+            if (points[j] === false) {
+                continue;
+            }
             this.layers[5]['point_'+j] = newElement('circle', {
                 id: this.unique+'_point_'+j,
                 cx: points[j].x,
                 cy: (points[j].y - marginBottom),
                 r: circleR,
-                fill: '#ffffff',
+                fill: pointFillColor,
                 style:  {
                     stroke:         '#1D8BD1',
                     'stroke-width': (circleR/3)
@@ -1498,21 +1567,22 @@ var LineChart = function () {
         
         var startAnimationY = this.area.y - (this.area.height/2);
         var aTime = this.get('animationTime');
-        
-        var animation = newElement('animate', {
-            attributeName: 'y1',
-            from: startAnimationY,
-            to: this.layers[5]['line_2_'+i].y1.baseVal.value,
-            begin: '0',
-            dur: aTime
-        });
-        var animation1 = newElement('animate', {
-            attributeName: 'y2',
-            from: startAnimationY,
-            to: this.layers[5]['line_2_'+i].y2.baseVal.value,
-            begin: '0',
-            dur: aTime
-        });
+        if (this.get('onlyPoints') === 0) {
+            var animation = newElement('animate', {
+                attributeName: 'y1',
+                from: startAnimationY,
+                to: this.layers[5]['line_2_'+i].y1.baseVal.value,
+                begin: '0',
+                dur: aTime
+            });
+            var animation1 = newElement('animate', {
+                attributeName: 'y2',
+                from: startAnimationY,
+                to: this.layers[5]['line_2_'+i].y2.baseVal.value,
+                begin: '0',
+                dur: aTime
+            });
+        }
         var animation2 = newElement('animate', {
             attributeName: 'cy',
             from: startAnimationY,
@@ -1529,9 +1599,10 @@ var LineChart = function () {
         });
                 
                 
-
-        this.layers[5]['line_2_'+i].appendChild(animation);
-        this.layers[5]['line_2_'+i].appendChild(animation1);
+        if (this.get('onlyPoints') === 0) {
+            this.layers[5]['line_2_'+i].appendChild(animation);
+            this.layers[5]['line_2_'+i].appendChild(animation1);
+        }
         this.layers[5]['point_'+i].appendChild(animation2);
         this.layers[2]['point_'+i+'_val'].appendChild(animation3);
     };
@@ -1573,7 +1644,7 @@ var LineChart = function () {
         }
         
     };
-    
+
     /**
      * Funkcja wykonuje wszystkie potrzebne obliczenia
      * @returns {undefined}
@@ -1589,6 +1660,8 @@ var LineChart = function () {
         var minValue = this.getMinValue(this.data); 
         this.valueJump = this.getValueJump(minValue, maxValue);
         this.realJumpSize = this.getRealJumpSize();
+        
+        
         this.drawBg();
         this.drawChart();
     };
@@ -1616,7 +1689,7 @@ var LineChart = function () {
     };    
 };
 
-var MapChart = function() {
+var  MapChart = function() {
     this.ROVINCE_POLSKA                  = 0;
     this.PROVINCE_DOLNOSLASKIE           = 1;
     this.PROVINCE_KUJAWSKO_POMORSKIE     = 2;
@@ -1768,6 +1841,25 @@ var MapChart = function() {
         this.replaceSiblings(element, element1);
     };
     
+    this.changeBackground = function(element, colour) {
+        if (this.isRgbColour(colour)) {
+            colour = 'rgb('+colour+')';
+        }
+        element.style['fill'] = colour;
+    };
+    
+    this.getMapHeight = function() {
+        var parentWidth = this.svgContainer.offsetWidth;
+        if (parseFloat(this.width) < 0) {
+            this.height = parseFloat(this.width) * parentWidth;
+        }
+        if (String(this.width).indexOf('%') > 0) {
+            this.height = parseInt(this.width)/100 * parentWidth;
+        }
+        
+        return this.height;
+    };
+    
     this.contoursOff = function(element) {
         var borderColor = this.get('borderColor');
         var linesWidth = parseInt(this.get('linesWidth'))*100;
@@ -1787,8 +1879,13 @@ var MapChart = function() {
         var colours = this.get('colours');
         var borderColor = this.get('borderColor');
         var linesWidth = parseInt(this.get('linesWidth'))*100;
+        var borderColor = this.get('borderColor');
+        var animateColour = null;
+        var animateColours = this.get('animateColours');
+        var defaultAnimateColour = this.get('animateColour');
         
         for (var provinceId in this.provinces) {
+            animateColour = (typeof(animateColours[provinceId]) === 'undefined' || animateColours[provinceId] === null) ? defaultAnimateColour : animateColours[provinceId];
             if (this.provinces[provinceId] === null) {
                 
             } else {
@@ -1799,7 +1896,8 @@ var MapChart = function() {
                         fill:           colours[provinceId],
                         'fill-opacity': 1,
                         stroke:         'rgb('+borderColor+')',
-                        'stroke-width':   linesWidth
+                        'stroke-width': linesWidth,
+                        cursor:         'pointer'
                     }
                 });
                 
@@ -1808,11 +1906,14 @@ var MapChart = function() {
                     tmpElement.addEventListener('mouseover', function() {
                         var element1 = this;                        
                         that.contoursOn(element1);
+                        that.changeBackground(element1, animateColour);
                     });
                     
                     tmpElement.addEventListener('mouseleave', function() {
                         var element1 = this;                        
                         that.contoursOff(element1);
+                        that.changeBackground(element1, colours[provinceId]);
+                        
                     });
                 }
 
@@ -1864,15 +1965,34 @@ var MapChart = function() {
         
         this.addDefinition(filter);
         
-        this.svg = newElement('svg', {
-            id:             this.unique,
-            height:         this.height,
-            width:          this.width,
+        
+        var svgAttributes = {
+            id:             this.unique,            
            // xmlns:          'http://www.w3.org/2000/svg',
             'fill-rule':    'evenodd',
-            viewBox:        '0 0 120000 100000'
-        });
+            viewBox:        '0 0 140000 120000'
+        };
+                
+        if (this.height !== null) {
+            svgAttributes.height = this.height;
+        }
+        if (this.width !== null) {
+            svgAttributes.width = this.width;
+        }
+       
+        this.svg = newElement('svg', svgAttributes);
         
+        if (this.height === null && this.isMSIE() === true) {            
+            this.height = this.getMapHeight();
+            
+            this.svg.style.height = this.height+'px';
+            var that = this;
+            if (this.height > 0) {
+                window.attachEvent('onresize', function(){
+                    that.svg.style.height = that.getMapHeight()+'px';
+                });
+            }
+        }
         
         this.svgContainer.innerHTML = '';
         this.appendDefinitions(this.svg);
@@ -1900,17 +2020,32 @@ var MapChart = function() {
         coords[this.PROVINCE_WIELKOPOLSKIE]         = [40000, 54000];
         coords[this.PROVINCE_ZACHODNIOPOMORSKIE]    = [19000, 26000];
         
+        
+        var animateColour           = null;
+        var colours                 = this.get('colours');
+        var animateColours          = this.get('animateColours');
+        var defaultAnimateColour    = this.get('animateColour');
+        
         for (var provinceId in this.provinces) {
+            animateColour = (typeof(animateColours[provinceId]) === 'undefined' || animateColours[provinceId] === null) ? defaultAnimateColour : animateColours[provinceId];
+            
             if (typeof this.labels[provinceId] !== 'undefined' && this.labels[provinceId] !== null) {
-                var tmpElement = newElement('text', {
+                var tmpStyle = {
                     x:              coords[provinceId][0],
                     y:              coords[provinceId][1],
                     id:             'label_'+provinceId,
                     'text-anchor':  'middle',
-                    fill:           '#000000',
-                    'font-size':    '4000',
-                    innerHTML:      this.labels[provinceId]
-                });
+                    fill:           'rgb('+this.get('textColor')+')',
+                    'font-size':    '400'*this.get('fontSize'),
+                    innerHTML:      this.labels[provinceId],
+                    cursor:         'pointer'
+                };
+                
+                if (this.get('fontBold') === 1) {
+                    tmpStyle['font-weight'] = 'bold';
+                }
+                
+                var tmpElement = newElement('text', tmpStyle);
                 
                 var that = this;
                 if (parseInt(this.get('animate')) === 1) {
@@ -1919,12 +2054,14 @@ var MapChart = function() {
                      
                         var element = document.getElementById('province_path_'+provinceId);
                         that.contoursOn(element);
+                        that.changeBackground(element, animateColour);
                     });
                     tmpElement.addEventListener('mouseout', function() {
                         var provinceId = parseInt(String(this.id).substring(6));
                         
                         var element = document.getElementById('province_path_'+provinceId);
                         that.contoursOff(element);
+                        that.changeBackground(element, colours[provinceId]);
                     });
                     
                     
@@ -1951,9 +2088,144 @@ var MapChart = function() {
     };
 };
 
+var PieChart = function() {
+    this.size           = null;
+    this.center         = null; //Środek wykresu
+    this.start          = null; //Punkt od którego zaczynamy rysować
+    this.freeColor      = null;
+    this.lineWidth      = null;
+    this.data           = null;
+    this.bars           = [];
+    this.spaceSize      = 0;
+    
+    /**
+     * Obraca punkt o współżędnych [x,y] wokół punku o współżdnych [cx,xy] o kąt "angle"
+     * 
+     * @param {Number} cx
+     * @param {Number} cy
+     * @param {Number} x
+     * @param {Number} y
+     * @param {number} angle
+     * @returns {Array}
+     */
+    this.rotate = function(cx, cy, x, y, angle) {
+        var radians = (Math.PI / 180) * angle,
+            cos = Math.cos(radians),
+            sin = Math.sin(radians),
+            nx = (cos * (x - cx)) + (sin * (y - cy)) + cx,
+            ny = (cos * (y - cy)) - (sin * (x - cx)) + cy;
+        return [nx, ny];
+    };
+    
+    this.init = function(size, data, config, container) {
+        if (typeof data !== 'object') {
+            throw 'Błędnie przesłane dane';
+        }
+        
+        if (typeof size !== 'number' || parseFloat(size) < 0) {
+            throw 'Rozmiar płótna jest zbyt mały';
+        }
+        
+        if (typeof container !== 'object') {
+            throw 'Błędny obiekt kontenera';
+        }
+        this.setConfig(config);
+        size = parseFloat(size);
+        
+        if (size < 1) {
+            this.width  = (size*100)+'%';
+            this.height = (size*100)+'%';
+        } else {
+            this.width  = size+'px';
+            this.height = size+'px';
+        }
+        
+        this.data = data;
+        this.size = 500;
+        this.container = container;
+        
+        this.start  = this.get('startCircle');
+        this.center = this.get('circleCenter');
+        this.lineWidth = this.get('linesWidth');
+        this.freeColor = this.get('freeSpaceColor');
+        this.spaceSize = this.get('spaceSize');
+        this.bgColor   = this.get('freeSpaceColor');
+    };
+    
+    this.draw = function() {
+        this.drawBars();
+        
+        var svgAttributes = {
+            id:             this.unique,            
+            // xmlns:          'http://www.w3.org/2000/svg',
+            'fill-rule':    'evenodd',
+            viewBox:        '0 0 500 500',
+            width:          this.width,
+            height:         this.height
+        };
+        
+        this.svg = newElement('svg', svgAttributes);
+        
+        for (var x in this.bars) {
+            this.svg.appendChild(this.bars[x]);
+        }
+                
+        this.container.appendChild(this.svg);
+    };
+    
+    this.drawBars = function() {
+        var rest = 100;
+        for(var x in this.data) {
+            rest -= parseFloat(this.data[x]);
+        }
+        if (rest > 0) {
+            this.data[this.bgColor] = rest;
+        }
+       
+        var point1      = [this.start[0], this.start[1]+this.lineWidth/2];
+        var point2      = null;        
+        var pathD       = null;
+        var percentVal  = null;
+        var arcDegrees  = null;
+        var radius      = (this.size - this.lineWidth)/2;
+        
+        for (var x in this.data) {            
+            percentVal = this.data[x] - this.spaceSize/3.6;
+            arcDegrees = (360*percentVal/100);
+            point2 = this.rotate(this.center[0], this.center[1], point1[0], point1[1], 360-arcDegrees);
+            
+            pathD = [
+                'M',
+                point1[0],
+                point1[1],
+                'A',
+                radius,
+                radius,
+                0,
+                0,
+                1,
+                point2[0],
+                point2[1]
+            ].join(' ');
+            
+            point1 = this.rotate(this.center[0], this.center[1], point2[0], point2[1], 360-this.spaceSize);
+            
+            this.bars[this.bars.length] =  newElement('path', {
+                d:              pathD,
+                'stroke-width': this.lineWidth,
+                stroke:         x,
+                fill:           'transparent'
+            });            
+        }        
+    };
+};
+
+
 LineChart.prototype = new ChartAbstract;
 ComposedBarChart.prototype = new ChartAbstract;
 MapChart.prototype = new ChartAbstract;
+PieChart.prototype = new ChartAbstract;
+
 
 /*
 SAMPLES:
