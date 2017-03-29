@@ -46,6 +46,8 @@ chart.showLabelsOnPoints();
  ```
  
  ### Composed column chart
+ 
+ ![ExampleImage](https://github.com/daniel1302/simple-js-chart/blob/master/images/composed-column-chart.png)
  ```html
  <div id="lineChart1" style="width: 700px; height: 500px;"></div>
  ```
@@ -76,6 +78,7 @@ chart1.draw();
 ```
 
 ### Poland map chart
+![ExampleImage](https://github.com/daniel1302/simple-js-chart/blob/master/images/poland-map-chart.png)
 ```html
 <div id="mapChart" style="width: 700px; height: 700px;"></div>
 ```
@@ -138,6 +141,7 @@ mapChart.draw();
 ```
 
 ### Multicolor circle chart
+![ExampleImage](https://github.com/daniel1302/simple-js-chart/blob/master/images/circle-chart.png)
 ```html
 <div id="circleChart" style="margin-top: 30px; text-align: center; width: 500px; height: 500px">
 ```
