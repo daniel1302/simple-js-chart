@@ -11,7 +11,7 @@ Examples
 =========
 
 ### Line chart
-![ExampleImage](daniel1302.github.com/simple-js-chart/tree/master/images/example_line_chart.png)
+![ExampleImage](https://github.com/daniel1302/simple-js-chart/blob/master/images/example_line_chart.png)
 ```html
 <div id="lineChart" style="width: 700px; height: 450px;"></div>
 ```
