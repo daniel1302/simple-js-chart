@@ -11,6 +11,7 @@ Examples
 =========
 
 ### Line chart
+![ExampleImage](daniel1302.github.com/simple-js-chart/tree/master/images/example_line_chart.png)
 ```html
 <div id="lineChart" style="width: 700px; height: 450px;"></div>
 ```
@@ -72,7 +73,6 @@ config1 = {
 var chart1 = new ComposedBarChart;
 chart1.init(700, 400, data1, labels1, config1, container1);
 chart1.draw();
-
 ```
 
 ### Poland map chart
