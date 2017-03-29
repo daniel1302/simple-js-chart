@@ -328,6 +328,7 @@ var ChartAbstract = function() {
         var horizontalLegend = this.get('horizontalLegend');
    
         var marginBottom = this.get('marginBottom', this.NUMBER);
+
         var marginSide = this.get('marginSide', this.NUMBER);
         var x=0;
         var y=this.height;
@@ -335,7 +336,7 @@ var ChartAbstract = function() {
         var height=this.height;      
         
         var dx = 0; //Zmiana x względem ostatniej zmiany
-        var dy = 0;
+        var dy = marginBottom;
         
         
         if (verticalLegend.side === 'left') {
@@ -356,12 +357,11 @@ var ChartAbstract = function() {
         if (title.length > 0) {
             height -= (titleArea.y+titleArea.height);
         }
-        
-        if (this.get('legendX').length > 0) {
-            dy = horizontalLegend.y + horizontalLegend.height + marginBottom;
-            y -= dy;
-            height -= dy;
-        }
+
+        dy = horizontalLegend.y + horizontalLegend.height;
+        y -= dy;
+        height -= dy;
+
         
         this.area = {
             x: x, 
@@ -633,8 +633,8 @@ var ChartAbstract = function() {
         var borderColor = this.get('borderColor');
         var marginSide = this.get('marginSide', this.NUMBER);
         var marginBottom = this.get('marginBottom', this.NUMBER);
-        
-        
+
+
         var dx = 0; //Margines spodni
         var xText = 0; //Od którego miejsca zaczyna się tekst
         var textAnchor = '';
@@ -642,7 +642,7 @@ var ChartAbstract = function() {
             this.layers[4]['line_0'] = newElement('line', {
                 x1: this.area.x,
                 x2: this.area.x,
-                y1: (this.area.y+marginBottom),
+                y1: (this.area.y),
                 y2: (this.area.y-this.area.height),
                 style: {
                     stroke:         'rgb('+borderColor+')',
@@ -657,7 +657,7 @@ var ChartAbstract = function() {
             this.layers[4]['line_0'] = newElement('line', {
                 x1: (this.area.x+this.area.width),
                 x2: (this.area.x+this.area.width),
-                y1: (this.area.y+marginBottom),
+                y1: (this.area.y),
                 y2: (this.area.y-this.area.height),
                 style:  {
                     stroke:         'rgb('+borderColor+')',
